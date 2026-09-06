@@ -46,6 +46,42 @@ final class FieldRegistry
             return [];
         }
 
+        $titles = [
+            'TITLE' => 'Название',
+            'NAME' => 'Имя',
+            'LAST_NAME' => 'Фамилия',
+            'SECOND_NAME' => 'Отчество',
+            'BIRTHDATE' => 'Дата рождения',
+            'POST' => 'Должность',
+            'COMPANY_TITLE' => 'Название компании',
+            'SOURCE_ID' => 'Источник',
+            'SOURCE_DESCRIPTION' => 'Описание источника',
+            'STATUS_ID' => 'Статус',
+            'STATUS_DESCRIPTION' => 'Описание статуса',
+            'COMMENTS' => 'Комментарий',
+            'OPPORTUNITY' => 'Сумма',
+            'CURRENCY_ID' => 'Валюта',
+            'ASSIGNED_BY_ID' => 'Ответственный',
+            'CREATED_BY_ID' => 'Кем создано',
+            'MODIFY_BY_ID' => 'Кем изменено',
+            'DATE_CREATE' => 'Дата создания',
+            'DATE_MODIFY' => 'Дата изменения',
+            'PHONE' => 'Телефон',
+            'EMAIL' => 'Электронная почта',
+            'WEB' => 'Сайт',
+            'IM' => 'Мессенджер',
+            'OPENED' => 'Доступно для всех',
+            'CLOSED' => 'Закрыто',
+            'TYPE_ID' => 'Тип',
+            'CATEGORY_ID' => 'Направление',
+            'STAGE_ID' => 'Стадия',
+            'BEGINDATE' => 'Дата начала',
+            'CLOSEDATE' => 'Дата завершения',
+            'PROBABILITY' => 'Вероятность',
+            'TAX_VALUE' => 'Налог',
+            'LOCATION_ID' => 'Местоположение',
+            'UF_CRM_TASK' => 'Задача',
+        ];
         $result = [];
         foreach ((array)$class::GetFields() as $name => $info) {
             if (!self::isAllowed((string)$name)) {
@@ -54,7 +90,7 @@ final class FieldRegistry
 
             $result[(string)$name] = [
                 'name' => (string)$name,
-                'title' => (string)($info['TITLE'] ?? $name),
+                'title' => $titles[$name] ?? (string)($info['TITLE'] ?? $name),
                 'type' => strtolower((string)($info['TYPE'] ?? 'string')),
             ];
         }

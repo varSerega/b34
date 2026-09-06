@@ -4,18 +4,23 @@ namespace Bozenko\MassFieldUpdate;
 
 final class MassUpdateService
 {
-    public static function update(string $entity, array $ids, string $field, string $value, int $iblockId = 0): array
+    public static function update(string $entity, array $ids, array $fieldValues, int $iblockId = 0): array
     {
         if (!isset(FieldRegistry::getEntities()[$entity])) {
             throw new \RuntimeException('Неизвестный тип сущности.');
         }
 
         $availableFields = FieldRegistry::getFields($entity, $iblockId);
-        if (!isset($availableFields[$field])) {
-            throw new \RuntimeException('Выбранное поле недоступно для этой сущности.');
+        if (!$fieldValues) {
+            throw new \RuntimeException('Выберите хотя бы одно поле.');
         }
-        if (!FieldRegistry::isAllowed($field) || !Permission::canUpdate($entity, $field, $iblockId)) {
-            throw new \RuntimeException('Нет права на изменение выбранного поля.');
+        foreach ($fieldValues as $field => $value) {
+            if (!isset($availableFields[$field])) {
+                throw new \RuntimeException('Выбранное поле недоступно для этой сущности.');
+            }
+            if (!FieldRegistry::isAllowed($field) || !Permission::canUpdate($entity, $field, $iblockId)) {
+                throw new \RuntimeException('Нет права на изменение поля: '.$availableFields[$field]['title'].'.');
+            }
         }
 
         $result = ['updated' => [], 'not_found' => [], 'skipped' => [], 'errors' => []];
@@ -26,15 +31,23 @@ final class MassUpdateService
             }
 
             try {
-                $updated = $entity === 'product'
-                    ? self::updateProduct($id, $field, $value, $iblockId)
-                    : self::updateCrm($entity, $id, $field, $value);
+                $hasUpdate = false;
+                foreach ($fieldValues as $field => $value) {
+                    $updated = $entity === 'product'
+                        ? self::updateProduct($id, $field, (string)$value, $iblockId)
+                        : self::updateCrm($entity, $id, $field, (string)$value);
 
-                if ($updated === null) {
-                    $result['not_found'][] = $id;
-                } elseif ($updated === false) {
-                    $result['skipped'][] = $id;
-                } else {
+                    if ($updated === null) {
+                        $result['not_found'][] = $id;
+                        break;
+                    }
+                    if ($updated === false) {
+                        $result['skipped'][] = $id;
+                        break;
+                    }
+                    $hasUpdate = true;
+                }
+                if ($hasUpdate && !in_array($id, $result['updated'], true)) {
                     $result['updated'][] = $id;
                 }
             } catch (\Throwable $exception) {

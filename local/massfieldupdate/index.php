@@ -39,8 +39,14 @@ if ($request->isPost() && $request->get('ajax') === 'Y') {
         }
 
         $entity = preg_replace('/[^a-z]/', '', (string)$request->getPost('entity'));
-        $field = preg_replace('/[^A-Za-z0-9_]/', '', (string)$request->getPost('field'));
         $iblockId = (int)$request->getPost('iblock_id');
+        $fieldValues = [];
+        foreach ((array)$request->getPost('fields') as $row) {
+            $field = preg_replace('/[^A-Za-z0-9_]/', '', (string)($row['field'] ?? ''));
+            if ($field !== '') {
+                $fieldValues[$field] = (string)($row['value'] ?? '');
+            }
+        }
         $ids = InputParser::idsFromText((string)$request->getPost('ids'));
         if (!empty($_FILES['id_file']['name'])) {
             $ids = array_values(array_unique(array_merge($ids, InputParser::idsFromFile($_FILES['id_file']))));
@@ -48,15 +54,10 @@ if ($request->isPost() && $request->get('ajax') === 'Y') {
         if (!$ids) {
             throw new RuntimeException('Укажите хотя бы один корректный ID.');
         }
-        if (!FieldRegistry::isAllowed($field) || !Permission::canUpdate($entity, $field, $iblockId)) {
-            throw new RuntimeException('У вас нет права на изменение выбранного поля.');
-        }
-
         $response['result'] = MassUpdateService::update(
             $entity,
             $ids,
-            $field,
-            (string)$request->getPost('value'),
+            $fieldValues,
             $iblockId
         );
         $response['success'] = true;
@@ -89,6 +90,9 @@ $APPLICATION->SetTitle('Массовое изменение полей');
     .mfu-row { margin: 0 0 18px; }
     .mfu-row label { display: block; font-weight: 600; margin: 0 0 6px; }
     .mfu-row input[type=text], .mfu-row textarea, .mfu-row select { box-sizing: border-box; min-height: 38px; padding: 8px 10px; width: 100%; }
+    .mfu-field-row { align-items: flex-start; display: flex; gap: 8px; margin-bottom: 10px; }
+    .mfu-field-row select { flex: 1; min-height: 38px; padding: 8px 10px; }
+    .mfu-field-row textarea { flex: 1; min-height: 38px; padding: 8px 10px; }
     .mfu-help { color: #7f8c8d; font-size: 12px; margin-top: 5px; }
     .mfu-result { line-height: 1.6; }
 </style>
@@ -112,14 +116,19 @@ $APPLICATION->SetTitle('Массовое изменение полей');
                 <?php endforeach; ?>
             </select>
         </div>
-        <div class="mfu-row">
-            <label for="mfu-field">Поле</label>
-            <select name="field" id="mfu-field">
-                <option value="">Выберите поле</option>
-                <?php foreach ($fields as $field): ?>
-                    <option value="<?=htmlspecialcharsbx($field['name'])?>"><?=htmlspecialcharsbx($field['title'])?> (<?=htmlspecialcharsbx($field['name'])?>)</option>
-                <?php endforeach; ?>
-            </select>
+        <div class="mfu-row" id="mfu-fields">
+            <label>Поля и значения</label>
+            <div class="mfu-field-row">
+                <select name="fields[0][field]" class="mfu-field-select">
+                    <option value="">Выберите поле</option>
+                    <?php foreach ($fields as $field): ?>
+                        <option value="<?=htmlspecialcharsbx($field['name'])?>"><?=htmlspecialcharsbx($field['title'])?></option>
+                    <?php endforeach; ?>
+                </select>
+                <textarea name="fields[0][value]" rows="2" placeholder="Новое значение"></textarea>
+                <button type="button" class="ui-btn ui-btn-light-border mfu-remove-field">Удалить</button>
+            </div>
+            <button type="button" class="ui-btn ui-btn-light-border" id="mfu-add-field">Добавить поле</button>
         </div>
         <div class="mfu-row">
             <label for="mfu-ids">ID сущностей</label>
@@ -131,10 +140,6 @@ $APPLICATION->SetTitle('Массовое изменение полей');
             <input type="file" name="id_file" id="mfu-file" accept=".csv,.txt,.xlsx">
             <div class="mfu-help">Поддерживаются CSV, TXT и XLSX. Используется первый столбец.</div>
         </div>
-        <div class="mfu-row">
-            <label for="mfu-value">Новое значение</label>
-            <textarea name="value" id="mfu-value" rows="4"></textarea>
-        </div>
         <button type="submit" class="ui-btn ui-btn-success">Изменить</button>
     </form>
     <div id="mfu-result" class="mfu-result" style="display:none"></div>
@@ -144,7 +149,8 @@ $APPLICATION->SetTitle('Массовое изменение полей');
     var form = BX('mfu-form');
     var entity = BX('mfu-entity');
     var iblock = BX('mfu-iblock');
-    var field = BX('mfu-field');
+    var fieldsContainer = BX('mfu-fields');
+    var addFieldButton = BX('mfu-add-field');
     var row = BX('mfu-iblock-row');
     var fieldsUrl = '<?=CUtil::JSEscape($APPLICATION->GetCurPage())?>';
 
@@ -154,19 +160,47 @@ $APPLICATION->SetTitle('Массовое изменение полей');
         fetch(fieldsUrl + '?' + params.toString(), {headers: {'X-Requested-With': 'XMLHttpRequest'}})
             .then(function(response) { return response.json(); })
             .then(function(data) {
-                field.innerHTML = '<option value="">Выберите поле</option>';
-                (data.fields || []).forEach(function(item) {
-                    field.insertAdjacentHTML('beforeend', '<option value="' + BX.util.htmlspecialchars(item.name) + '">' + BX.util.htmlspecialchars(item.title) + ' (' + BX.util.htmlspecialchars(item.name) + ')</option>');
+                fieldsContainer.querySelectorAll('.mfu-field-select').forEach(function(select) {
+                    select.innerHTML = '<option value="">Выберите поле</option>';
+                    (data.fields || []).forEach(function(item) {
+                        var option = document.createElement('option');
+                        option.value = item.name;
+                        option.textContent = item.title;
+                        select.appendChild(option);
+                    });
                 });
             });
     }
+
+    addFieldButton.addEventListener('click', function() {
+        var index = fieldsContainer.querySelectorAll('.mfu-field-row').length;
+        var row = document.createElement('div');
+        row.className = 'mfu-field-row';
+        row.innerHTML = '<select name="fields[' + index + '][field]" class="mfu-field-select"><option value="">Выберите поле</option></select>' +
+            '<textarea name="fields[' + index + '][value]" rows="2" placeholder="Новое значение"></textarea>' +
+            '<button type="button" class="ui-btn ui-btn-light-border mfu-remove-field">Удалить</button>';
+        fieldsContainer.insertBefore(row, addFieldButton);
+        loadFields();
+    });
+
+    fieldsContainer.addEventListener('click', function(event) {
+        if (event.target.classList.contains('mfu-remove-field')) {
+            var rows = fieldsContainer.querySelectorAll('.mfu-field-row');
+            if (rows.length > 1) {
+                event.target.parentNode.remove();
+            }
+        }
+    });
 
     entity.addEventListener('change', loadFields);
     iblock.addEventListener('change', loadFields);
     form.addEventListener('submit', function(event) {
         event.preventDefault();
-        if (!field.value) {
-            alert('Выберите поле.');
+        var invalidField = Array.prototype.some.call(fieldsContainer.querySelectorAll('.mfu-field-select'), function(select) {
+            return !select.value;
+        });
+        if (invalidField) {
+            alert('Выберите хотя бы одно поле.');
             return;
         }
         var popup = new BX.PopupWindow('mfu-confirm', null, {
