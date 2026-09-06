@@ -1,0 +1,10 @@
+{
+  "$schema": "https://getcomposer.org/schema.json",
+  "name": "bitrix/mass-field-update",
+  "description": "Mass field update support for Bitrix CRM entities and catalog products",
+  "type": "project",
+  "require": {
+    "php": ">=7.4",
+    "phpoffice/phpspreadsheet": "^1.29"
+  }
+}
