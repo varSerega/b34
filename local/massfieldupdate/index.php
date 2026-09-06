@@ -94,6 +94,9 @@ $APPLICATION->SetTitle('Массовое изменение полей');
     .mfu-field-row select { flex: 1; min-height: 38px; padding: 8px 10px; }
     .mfu-field-row textarea { flex: 1; min-height: 38px; padding: 8px 10px; }
     .mfu-help { color: #7f8c8d; font-size: 12px; margin-top: 5px; }
+    .mfu-progress-track { background: #e5e7eb; border-radius: 5px; height: 10px; margin: 12px 0 8px; overflow: hidden; width: 320px; }
+    .mfu-progress-bar { background: #2fc6f6; border-radius: 5px; height: 100%; transition: width .2s ease; width: 0; }
+    .mfu-progress-text { min-width: 320px; }
     .mfu-result { line-height: 1.6; }
 </style>
 <div class="mfu-form">
@@ -204,13 +207,18 @@ $APPLICATION->SetTitle('Массовое изменение полей');
             return;
         }
         var progressPopup;
-        var progressContent;
+        var progressContent = BX.create('div', {children: [
+            BX.create('div', {attrs: {className: 'mfu-progress-text'}, text: 'Изменяем данные, подождите...'}),
+            BX.create('div', {attrs: {className: 'mfu-progress-track'}, children: [
+                BX.create('div', {attrs: {className: 'mfu-progress-bar'}})
+            ]})
+        ]});
         var popup = new BX.PopupWindow('mfu-confirm', null, {
             content: BX.create('div', {text: 'Внести выбранное изменение во все указанные сущности?'}),
             buttons: [new BX.PopupWindowButton({text: 'Изменить', className: 'popup-window-button-accept', events: {click: function() {
                 popup.close();
                 progressPopup = new BX.PopupWindow('mfu-progress', null, {
-                    content: (progressContent = BX.create('div', {text: 'Изменяем данные, подождите...'})),
+                    content: progressContent,
                     closeIcon: false,
                     closeByEsc: false,
                     buttons: []
@@ -273,9 +281,9 @@ $APPLICATION->SetTitle('Массовое изменение полей');
                 data.delete('ids');
                 data.delete('id_file');
                 data.append('ids', batch.join(','));
-                progressContent.textContent = 'Обработано: ' + ((batchIndex - 1) * batchSize) + ' из ' + ids.length + '...';
+                setProgress(progressContent, (batchIndex - 1) * batchSize, ids.length, result.updated.length);
             } else {
-                progressContent.textContent = 'Обрабатываем файл с ID...';
+                progressContent.querySelector('.mfu-progress-text').textContent = 'Обрабатываем файл с ID...';
             }
 
             return fetch(fieldsUrl, {method: 'POST', body: data})
@@ -294,13 +302,19 @@ $APPLICATION->SetTitle('Массовое изменение полей');
                     result.skipped = result.skipped.concat(response.result.skipped || []);
                     result.errors = result.errors.concat(response.result.errors || []);
                     if (batch) {
-                        progressContent.textContent = 'Обработано: ' + Math.min(batchIndex * batchSize, ids.length) + ' из ' + ids.length + '. Изменено: ' + result.updated.length;
+                        setProgress(progressContent, Math.min(batchIndex * batchSize, ids.length), ids.length, result.updated.length);
                     }
                     return sendNextBatch();
                 });
         }
 
         return sendNextBatch();
+    }
+
+    function setProgress(progressContent, processed, total, updated) {
+        var percentage = total ? Math.round(processed / total * 100) : 0;
+        progressContent.querySelector('.mfu-progress-bar').style.width = percentage + '%';
+        progressContent.querySelector('.mfu-progress-text').textContent = 'Обработано: ' + processed + ' из ' + total + '. Изменено: ' + updated;
     }
 
     function parseIds() {
