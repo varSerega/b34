@@ -13,6 +13,7 @@ use Bozenko\MassFieldUpdate\Permission;
 Loader::includeModule('crm');
 Loader::includeModule('iblock');
 Loader::includeModule('catalog');
+\Bitrix\Main\UI\Extension::load('ui.entity-selector');
 
 $request = Context::getCurrent()->getRequest();
 $entity = preg_replace('/[^a-z]/', '', (string)$request->get('entity')) ?: 'lead';
@@ -278,20 +279,37 @@ $APPLICATION->SetTitle('Массовое изменение полей');
         var input;
 
         if (relation) {
-            input = document.createElement('select');
-            input.innerHTML = '<option value="">Выберите сущность</option>';
-            var search = document.createElement('input');
-            search.type = 'search';
-            search.className = 'mfu-reference-search';
-            search.placeholder = 'Начните вводить название...';
-            var searchTimer;
-            search.addEventListener('input', function() {
-                clearTimeout(searchTimer);
-                searchTimer = setTimeout(function() {
-                    loadReferenceOptions(input, relation, search.value);
-                }, 250);
+            var selectorWrapper = document.createElement('div');
+            var selectorHost = document.createElement('div');
+            var hiddenValue = document.createElement('input');
+            hiddenValue.type = 'hidden';
+            hiddenValue.name = select.name.replace('[field]', '[value]');
+            hiddenValue.value = currentInput ? currentInput.value : '';
+            selectorHost.id = 'mfu-reference-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+            selectorWrapper.appendChild(selectorHost);
+            selectorWrapper.appendChild(hiddenValue);
+            if (currentInput) {
+                currentInput.replaceWith(selectorWrapper);
+            } else {
+                fieldRow.insertBefore(selectorWrapper, fieldRow.querySelector('.mfu-remove-field'));
+            }
+
+            var entitySelector = new BX.UI.EntitySelector.TagSelector({
+                multiple: false,
+                dialogOptions: {
+                    context: 'mass-field-update',
+                    entities: [{id: relation === 'user' ? 'user' : 'crm-' + relation}]
+                }
             });
-            fieldRow.insertBefore(search, currentInput);
+            entitySelector.renderTo(selectorHost);
+            entitySelector.subscribe('onTagAdd', function(event) {
+                var tag = event.getData().tag;
+                hiddenValue.value = tag.getId();
+            });
+            entitySelector.subscribe('onTagRemove', function() {
+                hiddenValue.value = '';
+            });
+            return;
         } else if (fieldType === 'bool' || fieldType === 'boolean') {
             input = document.createElement('select');
             input.innerHTML = '<option value="Y">Да</option><option value="N">Нет</option>';
