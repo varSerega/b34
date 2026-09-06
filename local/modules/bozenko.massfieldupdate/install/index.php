@@ -2,7 +2,6 @@
 
 use Bitrix\Main\ModuleManager;
 use Bitrix\Main\ModuleTable;
-use Bitrix\Main\IO\Directory;
 
 class bozenko_massfieldupdate extends CModule
 {
@@ -68,8 +67,5 @@ class bozenko_massfieldupdate extends CModule
             ModuleManager::unRegisterModule($this->MODULE_ID);
         }
         $APPLICATION->IncludeAdminFile('Удаление модуля', __DIR__.'/unstep.php');
-
-        Directory::deleteDirectory(dirname(__DIR__));
-        Directory::deleteDirectory($_SERVER['DOCUMENT_ROOT'].'/local/massfieldupdate');
     }
 }
