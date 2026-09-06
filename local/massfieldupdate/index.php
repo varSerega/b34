@@ -203,17 +203,48 @@ $APPLICATION->SetTitle('Массовое изменение полей');
             alert('Выберите хотя бы одно поле.');
             return;
         }
+        var progressPopup;
         var popup = new BX.PopupWindow('mfu-confirm', null, {
             content: BX.create('div', {text: 'Внести выбранное изменение во все указанные сущности?'}),
             buttons: [new BX.PopupWindowButton({text: 'Изменить', className: 'popup-window-button-accept', events: {click: function() {
                 popup.close();
+                progressPopup = new BX.PopupWindow('mfu-progress', null, {
+                    content: BX.create('div', {text: 'Изменяем данные, подождите...'}),
+                    closeIcon: false,
+                    closeByEsc: false,
+                    buttons: []
+                });
+                progressPopup.show();
                 var data = new FormData(form);
                 data.append('ajax', 'Y');
                 fetch(fieldsUrl, {method: 'POST', body: data})
-                    .then(function(response) { return response.json(); })
+                    .then(function(response) {
+                        if (!response.ok) {
+                            throw new Error('Сервер вернул ошибку ' + response.status + '.');
+                        }
+                        return response.json();
+                    })
                     .then(function(result) {
-                        var content = result.success ? formatResult(result.result) : BX.util.htmlspecialchars(result.error || 'Неизвестная ошибка');
-                        new BX.PopupWindow('mfu-result-popup', null, {content: BX.create('div', {html: content}), buttons: [BX.PopupWindowButton.createOkButton('Закрыть')]}).show();
+                        progressPopup.close();
+                        if (!result.success) {
+                            throw new Error(result.error || 'Неизвестная ошибка');
+                        }
+                        var resultPopup = new BX.PopupWindow('mfu-result-popup', null, {
+                            content: BX.create('div', {html: '<b>Данные успешно изменены</b><br>' + formatResult(result.result)}),
+                            buttons: [new BX.PopupWindowButton({
+                                text: 'Закрыть',
+                                className: 'popup-window-button-accept',
+                                events: {click: function() { resultPopup.close(); }}
+                            })]
+                        });
+                        resultPopup.show();
+                        clearForm();
+                    })
+                    .catch(function(error) {
+                        if (progressPopup) {
+                            progressPopup.close();
+                        }
+                        alert(error.message || 'Не удалось выполнить изменение.');
                     });
             }}}), new BX.PopupWindowButton({
                 text: 'Отмена',
@@ -225,11 +256,20 @@ $APPLICATION->SetTitle('Массовое изменение полей');
     });
 
     function formatResult(result) {
-        return '<b>Изменения внесены</b><br>' +
-            'Изменено: ' + result.updated.length + '<br>' +
+        return 'Изменено сущностей: ' + result.updated.length + '<br>' +
             'Не найдено: ' + result.not_found.length + '<br>' +
             'Пропущено: ' + result.skipped.length + '<br>' +
             'Ошибок: ' + result.errors.length;
+    }
+
+    function clearForm() {
+        form.reset();
+        fieldsContainer.querySelectorAll('.mfu-field-row').forEach(function(fieldRow, index) {
+            if (index > 0) {
+                fieldRow.remove();
+            }
+        });
+        loadFields();
     }
 }());
 </script>
