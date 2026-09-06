@@ -35,12 +35,26 @@ if (!$request->isPost() && $request->get('ajax') === 'references') {
     $relation = (string)$request->get('relation');
     $options = [];
 
+    $query = trim((string)$request->get('q'));
     if ($relation === 'user') {
         $by = 'last_name';
         $order = 'asc';
-        $users = CUser::GetList($by, $order, ['ACTIVE' => 'Y'], [
+        $userFilter = ['ACTIVE' => 'Y'];
+        if ($query !== '') {
+            $userFilter = [
+                'ACTIVE' => 'Y',
+                'LOGIC' => 'AND',
+                [
+                    'LOGIC' => 'OR',
+                    ['?NAME' => $query],
+                    ['?LAST_NAME' => $query],
+                    ['?LOGIN' => $query],
+                ],
+            ];
+        }
+        $users = CUser::GetList($by, $order, $userFilter, [
             'FIELDS' => ['ID', 'NAME', 'LAST_NAME', 'SECOND_NAME', 'LOGIN'],
-            'NAV_PARAMS' => ['nTopCount' => 500],
+            'NAV_PARAMS' => ['nTopCount' => 50],
         ]);
         while ($user = $users->Fetch()) {
             $name = trim(implode(' ', array_filter([
@@ -48,38 +62,48 @@ if (!$request->isPost() && $request->get('ajax') === 'references') {
                 $user['NAME'],
                 $user['SECOND_NAME'],
             ])));
-            $options[] = [
-                'id' => (int)$user['ID'],
-                'title' => $name ?: (string)$user['LOGIN'],
-            ];
+            if ($query === '' || stripos($name.' '.$user['LOGIN'], $query) !== false) {
+                $options[] = [
+                    'id' => (int)$user['ID'],
+                    'title' => $name ?: (string)$user['LOGIN'],
+                ];
+            }
         }
     } elseif ($relation === 'company' && Loader::includeModule('crm')) {
+        $companyFilter = $query === '' ? [] : ['%TITLE' => $query];
         $companies = CCrmCompany::GetListEx(
             ['TITLE' => 'ASC'],
-            [],
+            $companyFilter,
             false,
-            ['nTopCount' => 500],
+            ['nTopCount' => 50],
             ['ID', 'TITLE']
         );
         while ($company = $companies->Fetch()) {
             $options[] = ['id' => (int)$company['ID'], 'title' => (string)$company['TITLE']];
         }
     } elseif ($relation === 'contact' && Loader::includeModule('crm')) {
+        $contactFilter = $query === '' ? [] : [
+            'LOGIC' => 'OR',
+            ['%NAME' => $query],
+            ['%LAST_NAME' => $query],
+            ['%SECOND_NAME' => $query],
+        ];
         $contacts = CCrmContact::GetListEx(
             ['LAST_NAME' => 'ASC', 'NAME' => 'ASC'],
-            [],
+            $contactFilter,
             false,
-            ['nTopCount' => 500],
+            ['nTopCount' => 50],
             ['ID', 'NAME', 'LAST_NAME', 'SECOND_NAME']
         );
         while ($contact = $contacts->Fetch()) {
+            $title = trim(implode(' ', array_filter([
+                $contact['LAST_NAME'],
+                $contact['NAME'],
+                $contact['SECOND_NAME'],
+            ])));
             $options[] = [
                 'id' => (int)$contact['ID'],
-                'title' => trim(implode(' ', array_filter([
-                    $contact['LAST_NAME'],
-                    $contact['NAME'],
-                    $contact['SECOND_NAME'],
-                ]))),
+                'title' => $title,
             ];
         }
     }
@@ -243,6 +267,7 @@ $APPLICATION->SetTitle('Массовое изменение полей');
         }
 
         var select = fieldRow.querySelector('.mfu-field-select');
+        fieldRow.querySelectorAll('.mfu-reference-search').forEach(function(search) { search.remove(); });
         var currentInput = fieldRow.querySelector('[name$="[value]"]');
         var fieldType = select && select.options[select.selectedIndex]
             ? select.options[select.selectedIndex].dataset.fieldType || 'string'
@@ -254,8 +279,19 @@ $APPLICATION->SetTitle('Массовое изменение полей');
 
         if (relation) {
             input = document.createElement('select');
-            input.innerHTML = '<option value="">Загрузка сущностей...</option>';
-            loadReferenceOptions(input, relation);
+            input.innerHTML = '<option value="">Выберите сущность</option>';
+            var search = document.createElement('input');
+            search.type = 'search';
+            search.className = 'mfu-reference-search';
+            search.placeholder = 'Начните вводить название...';
+            var searchTimer;
+            search.addEventListener('input', function() {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(function() {
+                    loadReferenceOptions(input, relation, search.value);
+                }, 250);
+            });
+            fieldRow.insertBefore(search, currentInput);
         } else if (fieldType === 'bool' || fieldType === 'boolean') {
             input = document.createElement('select');
             input.innerHTML = '<option value="Y">Да</option><option value="N">Нет</option>';
@@ -288,17 +324,20 @@ $APPLICATION->SetTitle('Массовое изменение полей');
         } else {
             fieldRow.insertBefore(input, fieldRow.querySelector('.mfu-remove-field'));
         }
+        if (relation) {
+            loadReferenceOptions(input, relation, '');
+        }
     }
 
-    function loadReferenceOptions(select, relation) {
-        fetch(fieldsUrl + '?ajax=references&relation=' + encodeURIComponent(relation))
+    function loadReferenceOptions(select, relation, query) {
+        fetch(fieldsUrl + '?ajax=references&relation=' + encodeURIComponent(relation) + '&q=' + encodeURIComponent(query || ''))
             .then(function(response) { return response.json(); })
             .then(function(data) {
                 select.innerHTML = '<option value="">Выберите сущность</option>';
                 (data.options || []).forEach(function(item) {
                     var option = document.createElement('option');
                     option.value = item.id;
-                    option.textContent = item.title + ' (ID ' + item.id + ')';
+                    option.textContent = item.title;
                     select.appendChild(option);
                 });
             })
