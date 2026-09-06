@@ -215,7 +215,11 @@ $APPLICATION->SetTitle('Массовое изменение полей');
                         var content = result.success ? formatResult(result.result) : BX.util.htmlspecialchars(result.error || 'Неизвестная ошибка');
                         new BX.PopupWindow('mfu-result-popup', null, {content: BX.create('div', {html: content}), buttons: [BX.PopupWindowButton.createOkButton('Закрыть')]}).show();
                     });
-            }}}), BX.PopupWindowButton.createCancelButton('Отмена')]
+            }}}), new BX.PopupWindowButton({
+                text: 'Отмена',
+                className: 'popup-window-button-link-cancel',
+                events: {click: function() { popup.close(); }}
+            })]
         });
         popup.show();
     });
