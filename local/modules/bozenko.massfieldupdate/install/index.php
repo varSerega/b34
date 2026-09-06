@@ -1,6 +1,7 @@
 <?php
 
 use Bitrix\Main\ModuleManager;
+use Bitrix\Main\ModuleTable;
 
 class bozenko_massfieldupdate extends CModule
 {
@@ -14,7 +15,13 @@ class bozenko_massfieldupdate extends CModule
     {
         global $APPLICATION;
 
-        if (!ModuleManager::isModuleInstalled($this->MODULE_ID)) {
+        $module = ModuleTable::getList([
+            'select' => ['ID'],
+            'filter' => ['=ID' => $this->MODULE_ID],
+            'cache' => ['ttl' => 0],
+        ])->fetch();
+
+        if (!$module) {
             ModuleManager::registerModule($this->MODULE_ID);
         }
         $APPLICATION->IncludeAdminFile('Установка модуля', __DIR__.'/step.php');
@@ -25,7 +32,13 @@ class bozenko_massfieldupdate extends CModule
         global $APPLICATION;
 
         COption::RemoveOption($this->MODULE_ID);
-        if (ModuleManager::isModuleInstalled($this->MODULE_ID)) {
+        $module = ModuleTable::getList([
+            'select' => ['ID'],
+            'filter' => ['=ID' => $this->MODULE_ID],
+            'cache' => ['ttl' => 0],
+        ])->fetch();
+
+        if ($module) {
             ModuleManager::unRegisterModule($this->MODULE_ID);
         }
         $APPLICATION->IncludeAdminFile('Удаление модуля', __DIR__.'/unstep.php');
