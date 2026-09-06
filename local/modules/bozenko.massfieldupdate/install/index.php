@@ -14,7 +14,9 @@ class bozenko_massfieldupdate extends CModule
     {
         global $APPLICATION;
 
-        ModuleManager::registerModule($this->MODULE_ID);
+        if (!ModuleManager::isModuleInstalled($this->MODULE_ID)) {
+            ModuleManager::registerModule($this->MODULE_ID);
+        }
         $APPLICATION->IncludeAdminFile('Установка модуля', __DIR__.'/step.php');
     }
 
@@ -23,7 +25,9 @@ class bozenko_massfieldupdate extends CModule
         global $APPLICATION;
 
         COption::RemoveOption($this->MODULE_ID);
-        ModuleManager::unRegisterModule($this->MODULE_ID);
+        if (ModuleManager::isModuleInstalled($this->MODULE_ID)) {
+            ModuleManager::unRegisterModule($this->MODULE_ID);
+        }
         $APPLICATION->IncludeAdminFile('Удаление модуля', __DIR__.'/unstep.php');
     }
 }
