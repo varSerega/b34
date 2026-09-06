@@ -30,6 +30,64 @@ if (!$request->isPost() && $request->get('ajax') === 'fields') {
     exit;
 }
 
+if (!$request->isPost() && $request->get('ajax') === 'references') {
+    header('Content-Type: application/json; charset=UTF-8');
+    $relation = (string)$request->get('relation');
+    $options = [];
+
+    if ($relation === 'user') {
+        $by = 'last_name';
+        $order = 'asc';
+        $users = CUser::GetList($by, $order, ['ACTIVE' => 'Y'], [
+            'FIELDS' => ['ID', 'NAME', 'LAST_NAME', 'SECOND_NAME', 'LOGIN'],
+            'NAV_PARAMS' => ['nTopCount' => 500],
+        ]);
+        while ($user = $users->Fetch()) {
+            $name = trim(implode(' ', array_filter([
+                $user['LAST_NAME'],
+                $user['NAME'],
+                $user['SECOND_NAME'],
+            ])));
+            $options[] = [
+                'id' => (int)$user['ID'],
+                'title' => $name ?: (string)$user['LOGIN'],
+            ];
+        }
+    } elseif ($relation === 'company' && Loader::includeModule('crm')) {
+        $companies = CCrmCompany::GetListEx(
+            ['TITLE' => 'ASC'],
+            [],
+            false,
+            ['nTopCount' => 500],
+            ['ID', 'TITLE']
+        );
+        while ($company = $companies->Fetch()) {
+            $options[] = ['id' => (int)$company['ID'], 'title' => (string)$company['TITLE']];
+        }
+    } elseif ($relation === 'contact' && Loader::includeModule('crm')) {
+        $contacts = CCrmContact::GetListEx(
+            ['LAST_NAME' => 'ASC', 'NAME' => 'ASC'],
+            [],
+            false,
+            ['nTopCount' => 500],
+            ['ID', 'NAME', 'LAST_NAME', 'SECOND_NAME']
+        );
+        while ($contact = $contacts->Fetch()) {
+            $options[] = [
+                'id' => (int)$contact['ID'],
+                'title' => trim(implode(' ', array_filter([
+                    $contact['LAST_NAME'],
+                    $contact['NAME'],
+                    $contact['SECOND_NAME'],
+                ]))),
+            ];
+        }
+    }
+
+    echo json_encode(['options' => $options], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($request->isPost() && $request->get('ajax') === 'Y') {
     header('Content-Type: application/json; charset=UTF-8');
     $response = ['success' => false];
@@ -171,6 +229,7 @@ $APPLICATION->SetTitle('Массовое изменение полей');
                         option.value = item.name;
                         option.textContent = item.title;
                         option.dataset.fieldType = item.type || 'string';
+                        option.dataset.relation = item.relation || '';
                         select.appendChild(option);
                     });
                     renderValueInput(select.closest('.mfu-field-row'));
@@ -188,9 +247,16 @@ $APPLICATION->SetTitle('Массовое изменение полей');
         var fieldType = select && select.options[select.selectedIndex]
             ? select.options[select.selectedIndex].dataset.fieldType || 'string'
             : 'string';
+        var relation = select && select.options[select.selectedIndex]
+            ? select.options[select.selectedIndex].dataset.relation || ''
+            : '';
         var input;
 
-        if (fieldType === 'bool' || fieldType === 'boolean') {
+        if (relation) {
+            input = document.createElement('select');
+            input.innerHTML = '<option value="">Загрузка сущностей...</option>';
+            loadReferenceOptions(input, relation);
+        } else if (fieldType === 'bool' || fieldType === 'boolean') {
             input = document.createElement('select');
             input.innerHTML = '<option value="Y">Да</option><option value="N">Нет</option>';
         } else if (/date.*time|datetime/i.test(fieldType)) {
@@ -222,6 +288,23 @@ $APPLICATION->SetTitle('Массовое изменение полей');
         } else {
             fieldRow.insertBefore(input, fieldRow.querySelector('.mfu-remove-field'));
         }
+    }
+
+    function loadReferenceOptions(select, relation) {
+        fetch(fieldsUrl + '?ajax=references&relation=' + encodeURIComponent(relation))
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                select.innerHTML = '<option value="">Выберите сущность</option>';
+                (data.options || []).forEach(function(item) {
+                    var option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = item.title + ' (ID ' + item.id + ')';
+                    select.appendChild(option);
+                });
+            })
+            .catch(function() {
+                select.innerHTML = '<option value="">Не удалось загрузить список</option>';
+            });
     }
 
     addFieldButton.addEventListener('click', function() {

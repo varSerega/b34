@@ -82,6 +82,14 @@ final class FieldRegistry
             'LOCATION_ID' => 'Местоположение',
             'UF_CRM_TASK' => 'Задача',
         ];
+        $relations = [
+            'ASSIGNED_BY_ID' => 'user',
+            'CREATED_BY_ID' => 'user',
+            'MODIFY_BY_ID' => 'user',
+            'MOVED_BY_ID' => 'user',
+            'COMPANY_ID' => 'company',
+            'CONTACT_ID' => 'contact',
+        ];
         $result = [];
         foreach ((array)$class::GetFields() as $name => $info) {
             if (!self::isAllowed((string)$name)) {
@@ -92,6 +100,7 @@ final class FieldRegistry
                 'name' => (string)$name,
                 'title' => $titles[$name] ?? (string)($info['TITLE'] ?? $name),
                 'type' => strtolower((string)($info['TYPE'] ?? 'string')),
+                'relation' => $relations[$name] ?? '',
             ];
         }
 
