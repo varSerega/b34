@@ -12,6 +12,7 @@ use Bozenko\MassFieldUpdate\Permission;
 
 Loader::includeModule('crm');
 Loader::includeModule('iblock');
+Loader::includeModule('catalog');
 
 $request = Context::getCurrent()->getRequest();
 $entity = preg_replace('/[^a-z]/', '', (string)$request->get('entity')) ?: 'lead';

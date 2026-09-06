@@ -37,7 +37,7 @@ final class FieldRegistry
 
     public static function isAllowed(string $field): bool
     {
-        return !preg_match('/^(ID|ENTITY_ID|OWNER_ID|PRODUCT_ID|IBLOCK_ID)$/i', $field);
+        return !preg_match('/^(ID|ENTITY_ID|OWNER_ID|PRODUCT_ID|IBLOCK_ID|IBLOCK_ELEMENT_ID)$/i', $field);
     }
 
     private static function crmFields(string $class): array
@@ -100,29 +100,36 @@ final class FieldRegistry
 
     private static function productFields(int $iblockId): array
     {
-        if (!\Bitrix\Main\Loader::includeModule('iblock')) {
+        if ($iblockId <= 0 || !\Bitrix\Main\Loader::includeModule('catalog')) {
             return [];
         }
 
-        $fields = [
-            'NAME' => ['name' => 'NAME', 'title' => 'Название', 'type' => 'string'],
-            'CODE' => ['name' => 'CODE', 'title' => 'Символьный код', 'type' => 'string'],
-            'SORT' => ['name' => 'SORT', 'title' => 'Сортировка', 'type' => 'number'],
-            'PREVIEW_TEXT' => ['name' => 'PREVIEW_TEXT', 'title' => 'Описание для списка', 'type' => 'text'],
-            'DETAIL_TEXT' => ['name' => 'DETAIL_TEXT', 'title' => 'Детальное описание', 'type' => 'text'],
-            'ACTIVE' => ['name' => 'ACTIVE', 'title' => 'Активность', 'type' => 'list'],
+        $titles = [
+            'QUANTITY' => 'Количество',
+            'WEIGHT' => 'Вес',
+            'VAT_ID' => 'Ставка НДС',
+            'VAT_INCLUDED' => 'НДС включён в цену',
+            'QUANTITY_TRACE' => 'Уменьшать количество при покупке',
+            'CAN_BUY_ZERO' => 'Разрешить покупку при отсутствии',
+            'NEGATIVE_AMOUNT_TRACE' => 'Разрешить отрицательный остаток',
+            'SUBSCRIBE' => 'Разрешить подписку при отсутствии',
+            'PURCHASING_PRICE' => 'Закупочная цена',
+            'PURCHASING_CURRENCY' => 'Валюта закупочной цены',
+            'MEASURE' => 'Единица измерения',
+            'TYPE' => 'Тип товара',
+            'BARCODE_MULTI' => 'Несколько штрихкодов',
         ];
 
-        $properties = \CIBlockProperty::GetList(['SORT' => 'ASC'], ['IBLOCK_ID' => $iblockId]);
-        while ($property = $properties->Fetch()) {
-            $code = (string)($property['CODE'] ?: $property['ID']);
-            $key = 'PROPERTY_'.$code;
-            $fields[$key] = [
-                'name' => $key,
-                'title' => 'Свойство: '.(string)$property['NAME'],
-                'type' => strtolower((string)$property['PROPERTY_TYPE']),
-                'property_code' => $code,
-                'multiple' => $property['MULTIPLE'] === 'Y',
+        $fields = [];
+        foreach ((array)\CCatalogProduct::GetFields() as $name => $info) {
+            if (!self::isAllowed((string)$name)) {
+                continue;
+            }
+
+            $fields[(string)$name] = [
+                'name' => (string)$name,
+                'title' => $titles[$name] ?? (string)($info['TITLE'] ?? $name),
+                'type' => strtolower((string)($info['TYPE'] ?? 'string')),
             ];
         }
 

@@ -85,29 +85,22 @@ final class MassUpdateService
 
     private static function updateProduct(int $id, string $field, string $value, int $iblockId): ?bool
     {
-        if ($iblockId <= 0 || !\Bitrix\Main\Loader::includeModule('iblock')) {
+        if ($iblockId <= 0 || !\Bitrix\Main\Loader::includeModule('catalog')) {
             throw new \RuntimeException('Не выбран инфоблок товаров.');
         }
 
-        $element = \CIBlockElement::GetList([], ['IBLOCK_ID' => $iblockId, 'ID' => $id], false, false, ['ID'])->Fetch();
-        if (!$element) {
+        $product = \CCatalogProduct::GetByID($id);
+        if (!$product) {
             return null;
         }
 
-        if (strpos($field, 'PROPERTY_') === 0) {
-            $code = substr($field, 9);
-            if (!\CIBlockElement::SetPropertyValuesEx($id, $iblockId, [$code => $value])) {
-                throw new \RuntimeException('Не удалось изменить свойство товара.');
-            }
-            return true;
+        $fields = \CCatalogProduct::GetFields();
+        if (!isset($fields[$field])) {
+            throw new \RuntimeException('Выбранное поле не относится к товарному каталогу.');
         }
 
-        $update = [$field => self::normalizeValue($value, $field)];
-        if (!\CIBlockElement::Update($id, $update)) {
-            global $APPLICATION;
-            $exception = is_object($APPLICATION) ? $APPLICATION->GetException() : null;
-            $message = is_object($exception) ? $exception->GetString() : '';
-            throw new \RuntimeException($message ?: 'Не удалось изменить товар.');
+        if (!\CCatalogProduct::Update($id, [$field => self::normalizeValue($value, $field)])) {
+            throw new \RuntimeException('Не удалось изменить поле товарного каталога.');
         }
 
         return true;
