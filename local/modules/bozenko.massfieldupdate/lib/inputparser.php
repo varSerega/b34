@@ -32,6 +32,10 @@ final class InputParser
         }
 
         if ($extension === 'xlsx') {
+            $composerAutoload = $_SERVER['DOCUMENT_ROOT'].'/vendor/autoload.php';
+            if (is_file($composerAutoload)) {
+                require_once $composerAutoload;
+            }
             if (!class_exists(IOFactory::class)) {
                 throw new \RuntimeException('Для XLSX установите зависимости Composer: composer install.');
             }
