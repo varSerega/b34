@@ -204,31 +204,21 @@ $APPLICATION->SetTitle('Массовое изменение полей');
             return;
         }
         var progressPopup;
+        var progressContent;
         var popup = new BX.PopupWindow('mfu-confirm', null, {
             content: BX.create('div', {text: 'Внести выбранное изменение во все указанные сущности?'}),
             buttons: [new BX.PopupWindowButton({text: 'Изменить', className: 'popup-window-button-accept', events: {click: function() {
                 popup.close();
                 progressPopup = new BX.PopupWindow('mfu-progress', null, {
-                    content: BX.create('div', {text: 'Изменяем данные, подождите...'}),
+                    content: (progressContent = BX.create('div', {text: 'Изменяем данные, подождите...'})),
                     closeIcon: false,
                     closeByEsc: false,
                     buttons: []
                 });
                 progressPopup.show();
-                var data = new FormData(form);
-                data.append('ajax', 'Y');
-                fetch(fieldsUrl, {method: 'POST', body: data})
-                    .then(function(response) {
-                        if (!response.ok) {
-                            throw new Error('Сервер вернул ошибку ' + response.status + '.');
-                        }
-                        return response.json();
-                    })
+                runUpdates(progressContent)
                     .then(function(result) {
                         progressPopup.close();
-                        if (!result.success) {
-                            throw new Error(result.error || 'Неизвестная ошибка');
-                        }
                         var resultPopup = new BX.PopupWindow('mfu-result-popup', null, {
                             content: BX.create('div', {html: '<b>Данные успешно изменены</b><br>' + formatResult(result.result)}),
                             buttons: [new BX.PopupWindowButton({
@@ -254,6 +244,80 @@ $APPLICATION->SetTitle('Массовое изменение полей');
         });
         popup.show();
     });
+
+    function runUpdates(progressContent) {
+        var ids = parseIds();
+        var batches = [];
+        var batchSize = 100;
+        var result = {updated: [], not_found: [], skipped: [], errors: []};
+
+        if (ids.length) {
+            for (var offset = 0; offset < ids.length; offset += batchSize) {
+                batches.push(ids.slice(offset, offset + batchSize));
+            }
+        } else {
+            batches.push(null);
+        }
+
+        var batchIndex = 0;
+        function sendNextBatch() {
+            if (batchIndex >= batches.length) {
+                return Promise.resolve({result: result});
+            }
+
+            var batch = batches[batchIndex++];
+            var data = new FormData(form);
+            data.delete('ajax');
+            data.append('ajax', 'Y');
+            if (batch) {
+                data.delete('ids');
+                data.delete('id_file');
+                data.append('ids', batch.join(','));
+                progressContent.textContent = 'Обработано: ' + ((batchIndex - 1) * batchSize) + ' из ' + ids.length + '...';
+            } else {
+                progressContent.textContent = 'Обрабатываем файл с ID...';
+            }
+
+            return fetch(fieldsUrl, {method: 'POST', body: data})
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('Сервер вернул ошибку ' + response.status + '.');
+                    }
+                    return response.json();
+                })
+                .then(function(response) {
+                    if (!response.success) {
+                        throw new Error(response.error || 'Неизвестная ошибка');
+                    }
+                    result.updated = result.updated.concat(response.result.updated || []);
+                    result.not_found = result.not_found.concat(response.result.not_found || []);
+                    result.skipped = result.skipped.concat(response.result.skipped || []);
+                    result.errors = result.errors.concat(response.result.errors || []);
+                    if (batch) {
+                        progressContent.textContent = 'Обработано: ' + Math.min(batchIndex * batchSize, ids.length) + ' из ' + ids.length + '. Изменено: ' + result.updated.length;
+                    }
+                    return sendNextBatch();
+                });
+        }
+
+        return sendNextBatch();
+    }
+
+    function parseIds() {
+        var input = form.querySelector('[name="ids"]');
+        var unique = {};
+        if (!input || !input.value.trim()) {
+            return [];
+        }
+
+        input.value.trim().split(/[,;\s]+/).forEach(function(value) {
+            if (/^\d+$/.test(value) && Number(value) > 0) {
+                unique[value] = Number(value);
+            }
+        });
+
+        return Object.keys(unique).map(function(value) { return unique[value]; });
+    }
 
     function formatResult(result) {
         return 'Изменено сущностей: ' + result.updated.length + '<br>' +
