@@ -170,10 +170,58 @@ $APPLICATION->SetTitle('Массовое изменение полей');
                         var option = document.createElement('option');
                         option.value = item.name;
                         option.textContent = item.title;
+                        option.dataset.fieldType = item.type || 'string';
                         select.appendChild(option);
                     });
+                    renderValueInput(select.closest('.mfu-field-row'));
                 });
             });
+    }
+
+    function renderValueInput(fieldRow) {
+        if (!fieldRow) {
+            return;
+        }
+
+        var select = fieldRow.querySelector('.mfu-field-select');
+        var currentInput = fieldRow.querySelector('[name$="[value]"]');
+        var fieldType = select && select.options[select.selectedIndex]
+            ? select.options[select.selectedIndex].dataset.fieldType || 'string'
+            : 'string';
+        var input;
+
+        if (fieldType === 'bool' || fieldType === 'boolean') {
+            input = document.createElement('select');
+            input.innerHTML = '<option value="Y">Да</option><option value="N">Нет</option>';
+        } else if (/date.*time|datetime/i.test(fieldType)) {
+            input = document.createElement('input');
+            input.type = 'datetime-local';
+        } else if (/^date$/i.test(fieldType)) {
+            input = document.createElement('input');
+            input.type = 'date';
+        } else if (/int|number|double|float|price|quantity/i.test(fieldType)) {
+            input = document.createElement('input');
+            input.type = 'number';
+            input.step = fieldType === 'int' || /integer/i.test(fieldType) ? '1' : 'any';
+        } else if (/crm_|user|employee|responsible|company|contact/i.test(fieldType)) {
+            input = document.createElement('input');
+            input.type = 'number';
+            input.step = '1';
+            input.placeholder = 'Введите ID';
+        } else {
+            input = document.createElement('textarea');
+            input.rows = 2;
+            input.placeholder = 'Новое значение';
+        }
+
+        input.name = select.name.replace('[field]', '[value]');
+        input.className = 'mfu-value-input';
+        if (currentInput) {
+            input.value = currentInput.value;
+            currentInput.replaceWith(input);
+        } else {
+            fieldRow.insertBefore(input, fieldRow.querySelector('.mfu-remove-field'));
+        }
     }
 
     addFieldButton.addEventListener('click', function() {
@@ -185,6 +233,12 @@ $APPLICATION->SetTitle('Массовое изменение полей');
             '<button type="button" class="ui-btn ui-btn-light-border mfu-remove-field">Удалить</button>';
         fieldsContainer.insertBefore(row, addFieldButton);
         loadFields();
+    });
+
+    fieldsContainer.addEventListener('change', function(event) {
+        if (event.target.classList.contains('mfu-field-select')) {
+            renderValueInput(event.target.closest('.mfu-field-row'));
+        }
     });
 
     fieldsContainer.addEventListener('click', function(event) {
@@ -350,6 +404,8 @@ $APPLICATION->SetTitle('Массовое изменение полей');
         });
         loadFields();
     }
+
+    loadFields();
 }());
 </script>
 <?php require $_SERVER['DOCUMENT_ROOT'].'/bitrix/footer.php'; ?>
