@@ -1,0 +1,38 @@
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== IDE =====
+.idea/
+*.iml
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ===== Ядро Битрикс (обновляется через систему обновлений CMS, в git не хранится) =====
+/bitrix/
+# ===== Битрикс: кэши и временные файлы (на случай хранения ядра) =====
+/bitrix/cache/
+/bitrix/managed_cache/
+/bitrix/stack_cache/
+/bitrix/html_pages/
+/bitrix/backup/
+/bitrix/tmp/
+/bitrix/tmp_cache/
+/bitrix/local_cache/
+
+# ===== Логи =====
+*.log
+error_log
+access.log
+
+# ===== Build (раскомментировать при необходимости) =====
+/node_modules/
+# /vendor/
+
+# ===== Секретные данные окружения =====
+/bitrix/.settings.php
+/bitrix/php_interface/dbconn.php
+
+# ===== Загрузки пользователей (раскомментировать, чтобы НЕ хранить в git) =====
+# /upload/
