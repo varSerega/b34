@@ -15,6 +15,7 @@ class bozenko_massfieldupdate extends CModule
     {
         global $APPLICATION;
 
+        require_once dirname(__DIR__).'/include.php';
         $module = ModuleTable::getList([
             'select' => ['ID'],
             'filter' => ['=ID' => $this->MODULE_ID],
@@ -24,6 +25,22 @@ class bozenko_massfieldupdate extends CModule
         if (!$module) {
             ModuleManager::registerModule($this->MODULE_ID);
         }
+        UnRegisterModuleDependences(
+            'main',
+            'OnBuildGlobalMenu',
+            $this->MODULE_ID,
+            'Bozenko\\MassFieldUpdate\\AdminMenu',
+            'onBuildGlobalMenu',
+            dirname(__DIR__).'/lib/adminmenu.php'
+        );
+        RegisterModuleDependences(
+            'main',
+            'OnBuildGlobalMenu',
+            $this->MODULE_ID,
+            'Bozenko\\MassFieldUpdate\\AdminMenu',
+            'onBuildGlobalMenu',
+            dirname(__DIR__).'/lib/adminmenu.php'
+        );
         $APPLICATION->IncludeAdminFile('Установка модуля', __DIR__.'/step.php');
     }
 
@@ -31,6 +48,14 @@ class bozenko_massfieldupdate extends CModule
     {
         global $APPLICATION;
 
+        UnRegisterModuleDependences(
+            'main',
+            'OnBuildGlobalMenu',
+            $this->MODULE_ID,
+            'Bozenko\\MassFieldUpdate\\AdminMenu',
+            'onBuildGlobalMenu',
+            dirname(__DIR__).'/lib/adminmenu.php'
+        );
         COption::RemoveOption($this->MODULE_ID);
         $module = ModuleTable::getList([
             'select' => ['ID'],
