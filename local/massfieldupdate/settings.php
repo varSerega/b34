@@ -30,6 +30,22 @@ while ($group = $groupCursor->Fetch()) {
     $groups[(int)$group['ID']] = $group['NAME'];
 }
 
+if ($request->get('ajax') === 'groups') {
+    header('Content-Type: application/json; charset=UTF-8');
+    $q = trim((string)$request->get('q'));
+    $filter = ['ACTIVE' => 'Y'];
+    if ($q !== '') {
+        $filter['%NAME'] = $q;
+    }
+    $res = CGroup::GetList('name', 'asc', $filter);
+    $found = [];
+    while ($group = $res->Fetch()) {
+        $found[] = ['id' => (int)$group['ID'], 'name' => (string)$group['NAME']];
+    }
+    echo json_encode(['groups' => array_slice($found, 0, 50)], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($request->isPost() && check_bitrix_sessid()) {
     $permissions = [];
     foreach ((array)$request->getPost('permissions') as $key => $groupIds) {
@@ -62,7 +78,14 @@ $APPLICATION->SetTitle('Права массового изменения пол�
 <style>
     .mfu-permissions { border-collapse: collapse; width: 100%; }
     .mfu-permissions th, .mfu-permissions td { border-bottom: 1px solid #e5e5e5; padding: 9px; text-align: left; vertical-align: top; }
-    .mfu-permissions select { min-width: 260px; }
+    .mfu-group-picker { position: relative; }
+    .mfu-group-search { box-sizing: border-box; width: 100%; min-height: 36px; padding: 7px 10px; }
+    .mfu-group-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .mfu-group-tag { background: #eef2f4; border-radius: 16px; padding: 5px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+    .mfu-group-tag .mfu-group-remove { cursor: pointer; color: #888; font-weight: 700; }
+    .mfu-group-dropdown { position: absolute; z-index: 20; background: #fff; border: 1px solid #dfe4e8; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.12); max-height: 220px; overflow: auto; width: 100%; margin-top: 4px; }
+    .mfu-group-option { padding: 8px 10px; cursor: pointer; }
+    .mfu-group-option:hover { background: #f1f5f7; }
 </style>
 <?php if ($request->get('saved') === 'Y'): ?><div class="ui-alert ui-alert-success"><span class="ui-alert-message">Настройки сохранены.</span></div><?php endif; ?>
 <form method="post">
@@ -75,11 +98,16 @@ $APPLICATION->SetTitle('Права массового изменения пол�
             <tr>
                 <td><?=htmlspecialcharsbx($title)?><br><small><?=htmlspecialcharsbx($key)?></small></td>
                 <td>
-                    <select name="permissions[<?=htmlspecialcharsbx($key)?>][]" multiple size="4">
-                        <?php foreach ($groups as $groupId => $groupName): ?>
-                            <option value="<?=$groupId?>"<?=in_array($groupId, array_map('intval', (array)$selected), true) ? ' selected' : ''?>><?=htmlspecialcharsbx($groupName)?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <div class="mfu-group-picker" data-key="<?=htmlspecialcharsbx($key)?>">
+                        <input type="search" class="mfu-group-search" placeholder="Найти группу..." autocomplete="off">
+                        <div class="mfu-group-tags">
+                            <?php foreach ((array)$selected as $gid): $gid = (int)$gid; if ($gid <= 0) continue; ?>
+                                <span class="mfu-group-tag" data-id="<?=$gid?>"><?=htmlspecialcharsbx($groups[$gid] ?? 'Группа '.$gid)?><span class="mfu-group-remove" title="Удалить">×</span></span>
+                                <input type="hidden" name="permissions[<?=htmlspecialcharsbx($key)?>][]" value="<?=$gid?>">
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="mfu-group-dropdown" style="display:none"></div>
+                    </div>
                 </td>
             </tr>
         <?php endforeach; ?>
@@ -87,4 +115,88 @@ $APPLICATION->SetTitle('Права массового изменения пол�
     </table>
     <br><button class="ui-btn ui-btn-success" type="submit">Сохранить</button>
 </form>
+<script>
+(function() {
+    var settingsUrl = '<?=CUtil::JSEscape($APPLICATION->GetCurPage())?>';
+    var timer;
+
+    document.addEventListener('input', function(event) {
+        if (!event.target.classList || !event.target.classList.contains('mfu-group-search')) {
+            return;
+        }
+        var picker = event.target.closest('.mfu-group-picker');
+        var dropdown = picker.querySelector('.mfu-group-dropdown');
+        var q = event.target.value.trim();
+        clearTimeout(timer);
+        if (q === '') {
+            dropdown.style.display = 'none';
+            dropdown.innerHTML = '';
+            return;
+        }
+        timer = setTimeout(function() {
+            fetch(settingsUrl + '?ajax=groups&q=' + encodeURIComponent(q))
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    dropdown.innerHTML = '';
+                    (data.groups || []).forEach(function(group) {
+                        var option = document.createElement('div');
+                        option.className = 'mfu-group-option';
+                        option.setAttribute('data-id', group.id);
+                        option.textContent = group.name;
+                        dropdown.appendChild(option);
+                    });
+                    dropdown.style.display = dropdown.children.length ? 'block' : 'none';
+                });
+        }, 250);
+    });
+
+    document.addEventListener('click', function(event) {
+        var target = event.target;
+        var picker = target.closest('.mfu-group-picker');
+
+        if (target.classList && target.classList.contains('mfu-group-option') && picker) {
+            var tags = picker.querySelector('.mfu-group-tags');
+            var id = target.getAttribute('data-id');
+            var name = target.textContent;
+            if (!picker.querySelector('.mfu-group-tag[data-id="' + id + '"]')) {
+                var tag = document.createElement('span');
+                tag.className = 'mfu-group-tag';
+                tag.setAttribute('data-id', id);
+                tag.appendChild(document.createTextNode(name));
+                var remove = document.createElement('span');
+                remove.className = 'mfu-group-remove';
+                remove.title = 'Удалить';
+                remove.textContent = '\u00d7';
+                tag.appendChild(remove);
+                tags.appendChild(tag);
+
+                var hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'permissions[' + picker.getAttribute('data-key') + '][]';
+                hidden.value = id;
+                tags.appendChild(hidden);
+            }
+            picker.querySelector('.mfu-group-search').value = '';
+            picker.querySelector('.mfu-group-dropdown').style.display = 'none';
+            return;
+        }
+
+        if (target.classList && target.classList.contains('mfu-group-remove') && picker) {
+            var tag = target.closest('.mfu-group-tag');
+            var id = tag.getAttribute('data-id');
+            picker.querySelectorAll('input[type=hidden][value="' + id + '"]').forEach(function(input) {
+                input.remove();
+            });
+            tag.remove();
+            return;
+        }
+
+        if (!picker) {
+            document.querySelectorAll('.mfu-group-dropdown').forEach(function(dropdown) {
+                dropdown.style.display = 'none';
+            });
+        }
+    });
+}());
+</script>
 <?php require $_SERVER['DOCUMENT_ROOT'].'/bitrix/footer.php'; ?>
