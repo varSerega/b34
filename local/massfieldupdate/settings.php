@@ -57,19 +57,21 @@ if ($request->isPost() && check_bitrix_sessid()) {
 }
 
 $permissionMap = Permission::getMap();
-$fieldSets = [];
+$entitySections = [];
 foreach (FieldRegistry::getEntities() as $entity => $title) {
+    $fields = [];
     if ($entity === 'product') {
         foreach ($iblocks as $iblockId => $iblockName) {
             foreach (FieldRegistry::getFields($entity, $iblockId) as $field) {
-                $fieldSets[$entity.'.'.$iblockId.'.'.$field['name']] = $title.' / '. $iblockName.' / '.$field['title'];
+                $fields[$entity.'.'.$iblockId.'.'.$field['name']] = $iblockName.' / '.$field['title'];
             }
         }
     } else {
         foreach (FieldRegistry::getFields($entity) as $field) {
-            $fieldSets[$entity.'.'.$field['name']] = $title.' / '.$field['title'];
+            $fields[$entity.'.'.$field['name']] = $field['title'];
         }
     }
+    $entitySections[$entity] = ['title' => $title, 'fields' => $fields];
 }
 
 require $_SERVER['DOCUMENT_ROOT'].'/bitrix/header.php';
@@ -78,6 +80,12 @@ $APPLICATION->SetTitle('Права массового изменения пол�
 <style>
     .mfu-permissions { border-collapse: collapse; width: 100%; }
     .mfu-permissions th, .mfu-permissions td { border-bottom: 1px solid #e5e5e5; padding: 9px; text-align: left; vertical-align: top; }
+    .mfu-entity-section { background: #fff; border: 1px solid #dfe4e8; border-radius: 6px; margin-bottom: 12px; }
+    .mfu-entity-section summary { cursor: pointer; font-size: 16px; font-weight: 600; padding: 14px 16px; }
+    .mfu-entity-section summary span { color: #8b949e; font-size: 13px; font-weight: 400; }
+    .mfu-entity-section[open] summary { border-bottom: 1px solid #dfe4e8; }
+    .mfu-entity-section .mfu-permissions { margin: 0; }
+    .mfu-empty { color: #7f8c8d; padding: 0 16px 16px; }
     .mfu-group-picker { position: relative; }
     .mfu-group-search { box-sizing: border-box; width: 100%; min-height: 36px; padding: 7px 10px; }
     .mfu-group-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -90,29 +98,38 @@ $APPLICATION->SetTitle('Права массового изменения пол�
 <?php if ($request->get('saved') === 'Y'): ?><div class="ui-alert ui-alert-success"><span class="ui-alert-message">Настройки сохранены.</span></div><?php endif; ?>
 <form method="post">
     <?=bitrix_sessid_post()?>
-    <table class="mfu-permissions">
-        <thead><tr><th>Поле</th><th>Группы с правом изменения</th></tr></thead>
-        <tbody>
-        <?php foreach ($fieldSets as $key => $title): ?>
-            <?php $selected = $permissionMap[$key] ?? []; ?>
-            <tr>
-                <td><?=htmlspecialcharsbx($title)?><br><small><?=htmlspecialcharsbx($key)?></small></td>
-                <td>
-                    <div class="mfu-group-picker" data-key="<?=htmlspecialcharsbx($key)?>">
-                        <input type="search" class="mfu-group-search" placeholder="Найти группу..." autocomplete="off">
-                        <div class="mfu-group-tags">
-                            <?php foreach ((array)$selected as $gid): $gid = (int)$gid; if ($gid <= 0) continue; ?>
-                                <span class="mfu-group-tag" data-id="<?=$gid?>"><?=htmlspecialcharsbx($groups[$gid] ?? 'Группа '.$gid)?><span class="mfu-group-remove" title="Удалить">×</span></span>
-                                <input type="hidden" name="permissions[<?=htmlspecialcharsbx($key)?>][]" value="<?=$gid?>">
-                            <?php endforeach; ?>
-                        </div>
-                        <div class="mfu-group-dropdown" style="display:none"></div>
-                    </div>
-                </td>
-            </tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
+    <?php foreach ($entitySections as $entity => $section): ?>
+        <details class="mfu-entity-section"<?=$entity === 'deal' ? ' open' : ''?>>
+            <summary><?=htmlspecialcharsbx($section['title'])?> <span>(<?=count($section['fields'])?> полей)</span></summary>
+            <?php if (!$section['fields']): ?>
+                <p class="mfu-empty">Для этой сущности поля не найдены.</p>
+            <?php else: ?>
+                <table class="mfu-permissions">
+                    <thead><tr><th>Поле</th><th>Группы с правом изменения</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($section['fields'] as $key => $fieldTitle): ?>
+                        <?php $selected = $permissionMap[$key] ?? []; ?>
+                        <tr>
+                            <td><?=htmlspecialcharsbx($fieldTitle)?><br><small><?=htmlspecialcharsbx($key)?></small></td>
+                            <td>
+                                <div class="mfu-group-picker" data-key="<?=htmlspecialcharsbx($key)?>">
+                                    <input type="search" class="mfu-group-search" placeholder="Найти группу..." autocomplete="off">
+                                    <div class="mfu-group-tags">
+                                        <?php foreach ((array)$selected as $gid): $gid = (int)$gid; if ($gid <= 0) continue; ?>
+                                            <span class="mfu-group-tag" data-id="<?=$gid?>"><?=htmlspecialcharsbx($groups[$gid] ?? 'Группа '.$gid)?><span class="mfu-group-remove" title="Удалить">×</span></span>
+                                            <input type="hidden" name="permissions[<?=htmlspecialcharsbx($key)?>][]" value="<?=$gid?>">
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <div class="mfu-group-dropdown" style="display:none"></div>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+        </details>
+    <?php endforeach; ?>
     <br><button class="ui-btn ui-btn-success" type="submit">Сохранить</button>
 </form>
 <script>
