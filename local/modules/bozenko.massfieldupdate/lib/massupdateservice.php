@@ -85,7 +85,10 @@ final class MassUpdateService
 
     private static function updateProduct(int $id, string $field, string $value, int $iblockId): ?bool
     {
-        if ($iblockId <= 0 || !\Bitrix\Main\Loader::includeModule('catalog')) {
+        if ($iblockId <= 0
+            || !\Bitrix\Main\Loader::includeModule('iblock')
+            || !\Bitrix\Main\Loader::includeModule('catalog')
+        ) {
             throw new \RuntimeException('Не выбран инфоблок товаров.');
         }
 
@@ -97,6 +100,14 @@ final class MassUpdateService
         $availableFields = FieldRegistry::getFields('product', $iblockId);
         if (!isset($availableFields[$field])) {
             throw new \RuntimeException('Выбранное поле не относится к товарному каталогу.');
+        }
+
+        if (strpos($field, 'PROPERTY_') === 0) {
+            $code = substr($field, 9);
+            if (!\CIBlockElement::SetPropertyValuesEx($id, $iblockId, [$code => $value])) {
+                throw new \RuntimeException('Не удалось изменить пользовательское свойство товара.');
+            }
+            return true;
         }
 
         if (!\CCatalogProduct::Update($id, [$field => self::normalizeValue($value, $field)])) {

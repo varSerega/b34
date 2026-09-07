@@ -160,6 +160,21 @@ final class FieldRegistry
             ];
         }
 
+        if (\Bitrix\Main\Loader::includeModule('iblock')) {
+            $properties = \CIBlockProperty::GetList(['SORT' => 'ASC'], ['IBLOCK_ID' => $iblockId]);
+            while ($property = $properties->Fetch()) {
+                $code = (string)($property['CODE'] ?: $property['ID']);
+                $key = 'PROPERTY_'.$code;
+                $fields[$key] = [
+                    'name' => $key,
+                    'title' => 'Свойство: '.(string)$property['NAME'],
+                    'type' => strtolower((string)$property['PROPERTY_TYPE']),
+                    'property_code' => $code,
+                    'multiple' => $property['MULTIPLE'] === 'Y',
+                ];
+            }
+        }
+
         return $fields;
     }
 
