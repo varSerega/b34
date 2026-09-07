@@ -13,13 +13,28 @@ final class FieldRegistry
 
     public static function getEntities(): array
     {
-        return [
-            'lead' => 'Лиды',
-            'deal' => 'Сделки',
-            'contact' => 'Контакты',
-            'company' => 'Компании',
-            'product' => 'Товары',
-        ];
+        $entities = [];
+        if (\Bitrix\Main\Loader::includeModule('crm')) {
+            foreach ([
+                'lead' => ['Лиды', 'CCrmLead'],
+                'deal' => ['Сделки', 'CCrmDeal'],
+                'contact' => ['Контакты', 'CCrmContact'],
+                'company' => ['Компании', 'CCrmCompany'],
+            ] as $entity => [$title, $class]) {
+                if (class_exists($class) && method_exists($class, 'GetFields')) {
+                    $entities[$entity] = $title;
+                }
+            }
+        }
+
+        if (\Bitrix\Main\Loader::includeModule('iblock')
+            && \Bitrix\Main\Loader::includeModule('catalog')
+            && class_exists('Bitrix\\Catalog\\ProductTable')
+        ) {
+            $entities['product'] = 'Товары';
+        }
+
+        return $entities;
     }
 
     public static function getFields(string $entity, int $iblockId = 0): array
