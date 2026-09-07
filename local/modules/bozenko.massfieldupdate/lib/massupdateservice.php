@@ -94,8 +94,8 @@ final class MassUpdateService
             return null;
         }
 
-        $fields = \CCatalogProduct::GetFields();
-        if (!isset($fields[$field])) {
+        $availableFields = FieldRegistry::getFields('product', $iblockId);
+        if (!isset($availableFields[$field])) {
             throw new \RuntimeException('Выбранное поле не относится к товарному каталогу.');
         }
 

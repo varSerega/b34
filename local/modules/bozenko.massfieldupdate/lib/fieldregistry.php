@@ -37,7 +37,7 @@ final class FieldRegistry
 
     public static function isAllowed(string $field): bool
     {
-        return !preg_match('/^(ID|ENTITY_ID|OWNER_ID|PRODUCT_ID|IBLOCK_ID|IBLOCK_ELEMENT_ID)$/i', $field);
+        return !preg_match('/^(ID|ENTITY_ID|OWNER_ID|PRODUCT_ID|IBLOCK_ID|IBLOCK_ELEMENT_ID|AVAILABLE|TIMESTAMP_X|QUANTITY_RESERVED|BUNDLE)$/i', $field);
     }
 
     private static function crmFields(string $class): array
@@ -130,18 +130,38 @@ final class FieldRegistry
         ];
 
         $fields = [];
-        foreach ((array)\CCatalogProduct::GetFields() as $name => $info) {
+        foreach (\Bitrix\Catalog\ProductTable::getEntity()->getFields() as $name => $field) {
+            if (!($field instanceof \Bitrix\Main\ORM\Fields\ScalarField)) {
+                continue;
+            }
             if (!self::isAllowed((string)$name)) {
                 continue;
             }
 
             $fields[(string)$name] = [
                 'name' => (string)$name,
-                'title' => $titles[$name] ?? (string)($info['TITLE'] ?? $name),
-                'type' => strtolower((string)($info['TYPE'] ?? 'string')),
+                'title' => $titles[$name] ?? (string)$field->getTitle(),
+                'type' => self::fieldType($field),
             ];
         }
 
         return $fields;
+    }
+
+    private static function fieldType($field): string
+    {
+        switch (strtolower((string)$field->getDataType())) {
+            case 'boolean':
+                return 'bool';
+            case 'integer':
+            case 'float':
+                return 'number';
+            case 'datetime':
+                return 'datetime';
+            case 'date':
+                return 'date';
+            default:
+                return 'string';
+        }
     }
 }
