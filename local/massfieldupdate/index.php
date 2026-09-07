@@ -423,7 +423,7 @@ $APPLICATION->SetTitle('Массовое изменение полей');
                     .then(function(result) {
                         progressPopup.close();
                         var resultPopup = new BX.PopupWindow('mfu-result-popup', null, {
-                            content: BX.create('div', {html: '<b>Данные успешно изменены</b><br>' + formatResult(result.result)}),
+                            content: BX.create('div', {html: formatResult(result.result)}),
                             buttons: [new BX.PopupWindowButton({
                                 text: 'Закрыть',
                                 className: 'popup-window-button-accept',
@@ -529,10 +529,27 @@ $APPLICATION->SetTitle('Массовое изменение полей');
     }
 
     function formatResult(result) {
-        return 'Изменено сущностей: ' + result.updated.length + '<br>' +
+        var html = (result.errors.length ? '<b>Обработка завершена с ошибками</b>' : '<b>Данные успешно изменены</b>') + '<br>' +
+            'Изменено сущностей: ' + result.updated.length + '<br>' +
             'Не найдено: ' + result.not_found.length + '<br>' +
             'Пропущено: ' + result.skipped.length + '<br>' +
             'Ошибок: ' + result.errors.length;
+
+        if (result.errors.length) {
+            html += '<details open><summary>Подробности ошибок</summary><ul>';
+            result.errors.forEach(function(error) {
+                html += '<li>ID ' + BX.util.htmlspecialchars(String(error.id)) + ': ' + BX.util.htmlspecialchars(String(error.message || 'Неизвестная ошибка')) + '</li>';
+            });
+            html += '</ul></details>';
+        }
+        if (result.not_found.length) {
+            html += '<details><summary>Ненайденные ID</summary>' + BX.util.htmlspecialchars(result.not_found.join(', ')) + '</details>';
+        }
+        if (result.skipped.length) {
+            html += '<details><summary>Пропущенные ID</summary>' + BX.util.htmlspecialchars(result.skipped.join(', ')) + '</details>';
+        }
+
+        return html;
     }
 
     function clearForm() {
