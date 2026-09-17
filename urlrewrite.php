@@ -1152,6 +1152,14 @@ $arUrlRewrite=array (
     'PATH' => '/crm/ml/index.php',
     'SORT' => 100,
   ),
+  154 => 
+  array (
+    'CONDITION' => '#^/exam31/#',
+    'RULE' => NULL,
+    'ID' => 'exam31.ticket:examelements',
+    'PATH' => '/exam31/index.php',
+    'SORT' => 100,
+  ),
   43 => 
   array (
     'CONDITION' => '#^/sites/#',
